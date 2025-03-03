@@ -1,0 +1,86 @@
+version: '3.4'
+
+services:
+  auth_db:
+    image: postgres:13.0
+    restart: always
+    container_name: banking_auth_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: bVhDX2XcgwEatQ6djUNKLm786wguSjpm
+      POSTGRES_DB: banking_auth
+    ports:
+      - 5436:5432      
+
+  bank_account_db:
+    image: postgres:13.0
+    restart: always
+    container_name: banking_account_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: bVhDX2XcgwEatQ6djUNKLm786wguSjpm
+      POSTGRES_DB: banking_account
+    ports:
+      - 5437:5432
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=moneytransfer
+      - RABBITMQ_DEFAULT_PASS=bVhDX2XcgwEatQ6djUNKLm786wguSjpm  
+    ports:
+      - 5672:5672
+      - 15672:15672
+
+  apigateway:
+    image: ${DOCKER_REGISTRY-}apigateway
+    build:
+      context: ./ApiGateway
+      dockerfile: Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=https://+:5012;http://+:5011
+    restart: always
+    ports:
+      - "5012:5012"
+
+  authservice:
+    image: ${DOCKER_REGISTRY-}authservice
+    build:
+      context: ./Microservices/AuthService
+      dockerfile: Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=https://+:5015;http://+:5016
+    restart: always
+    depends_on:
+      - "auth_db"
+      - "rabbitmq"
+
+  bankaccount:
+    image: ${DOCKER_REGISTRY-}bankaccount
+    build:
+      context: ./Microservices/BankAccount
+      dockerfile: Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=https://+:5017;http://+:5018
+    restart: always
+    depends_on:
+      - "bank_account_db"
+      - "rabbitmq"
+      - "moneytransferservice"
+
+  moneytransferservice:
+    image: ${DOCKER_REGISTRY-}moneytransferservice
+    build:
+      context: ./Microservices/MoneyTransferService
+      dockerfile: Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=https://+:5019;http://+:5020
+    restart: always
+    depends_on:
+      - "bank_account_db"
+      - "rabbitmq"
